@@ -1,0 +1,4 @@
+PyYAML==6.0
+pandas==1.5.*
+python-dateutil==2.8.2
+cliff==3.10.*

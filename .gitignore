@@ -1,0 +1,3 @@
+venv/
+epidbcmd/local_config.py
+**/__pycache__
