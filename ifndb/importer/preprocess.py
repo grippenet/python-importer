@@ -142,6 +142,7 @@ class MigrationProcessor(BasePreprocessor):
             data = json.load(open(f, 'r'))
         if data is None:
             raise Exception("Unable to load migrations")
+        self.migrations = data
     
     def apply(self, rows: pandas.DataFrame):
         def migrate_id(value):
