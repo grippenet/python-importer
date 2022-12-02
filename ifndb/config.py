@@ -1,7 +1,13 @@
+import json
+import os
+settings = {}
 
-from .local_config import settings 
-
-#settings = {
-#    'dsn': 'dbname="epidb"',
-#    'import_path': '/home/epidb/upload',
-#}
+def load_config():
+    file = 'settings.json'
+    env = os.getenv('IFNDB_SETTINGS', '')
+    if env != '':
+        file = env
+    data = json.load(open(file, 'r'))
+    for name, param in data.items():
+        settings[name] = param
+    

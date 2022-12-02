@@ -41,7 +41,8 @@ def write_content(path, content):
         f.close()
 
 def read_yaml(path, must_exist=False):
-    obj = yaml.load(read_content(path, must_exist=must_exist))
+    data = read_content(path, must_exist=must_exist)
+    obj = yaml.load(data, yaml.FullLoader)
     return obj
 
 def write_yaml(path, data):

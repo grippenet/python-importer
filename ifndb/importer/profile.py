@@ -1,8 +1,11 @@
 import fnmatch
 from typing import Dict, Optional, List
 from collections import OrderedDict
+from ..common import get_table_name
 
 from .types import CONVERTS
+
+from . preprocess import PREPROCESSORS
 
 class ColumnConf:
     """
@@ -29,8 +32,7 @@ class ColumnConf:
             if 'to' in conf:
                     self.to = conf['to']
         if self.to is not None and not self.to in CONVERTS:
-            raise Exception("Unknown convesion type '%s' for '%s'" % (self.to, name))
-
+            raise Exception("Unknown conversion type '%s' for '%s'" % (self.to, name))
 class TableConf:
     """
         Describe mapping for a table
@@ -39,13 +41,23 @@ class TableConf:
         The mapping can refer to a full column name (like 'Q10c_1') or a pattern 'Q10c_*'
 
     """
-    def __init__(self, conf):
+    def __init__(self, conf, global_conf):
         self.patterns = []
         self.mapping = OrderedDict()
+        self.table = conf['table']
+        self.preprocess = []
+        
         for name, colDef in conf['mapping'].items():
             self.mapping[name] = ColumnConf(name, colDef)
             if '*' in name:
                 self.patterns.append(name)
+        if 'prepare' in conf:
+            for index, p in enumerate(conf['prepare']):
+                try:
+                    pc = self.create_preprocessor(p, global_conf)
+                    self.preprocess.append(pc)
+                except Exception as e:
+                    raise Exception("Error in prepare %d : %s" % (index, e)) from e
 
     def get_mapping(self, name):
         if name in self.mapping:
@@ -56,13 +68,38 @@ class TableConf:
                     return self.mapping[pattern]
         return None
 
+    def create_preprocessor(self, conf, global_conf):
+        if not isinstance(conf, dict):
+            raise("Preproressor entry must be a dict")
+        for name, params in conf.items():
+            if not name in PREPROCESSORS:
+                raise Exception("Unknown preprocessor '%s'" % name)
+            klass = PREPROCESSORS[name]
+            return klass(params, global_conf)
+
+    def get_table_name(self)->str:
+        return get_table_name(self.table)
+        
 
 class Profile:
-    def __init__(self, data) -> None:
+    def __init__(self, data:Dict, extra_globals: Dict):
+        if '_config' in data:
+            self.create_globals(data['_config'], extra_globals)
+            del data['_config']
+        else:
+            self.create_globals({}, extra_globals)
         
         self.tables = {}
-        for name, tb in data['tables'].items():
-            self.tables[name] = TableConf(tb)
+        for name, tb in data.items():
+            self.tables[name] = TableConf(tb, self.global_conf)
 
+    def create_globals(self, conf, extra:Dict):
+        if 'key_separator' in conf:
+            if not isinstance(conf['key_separator'], str):
+                raise Exception("key_separator should be a string")
+        self.global_conf = conf
+        for name, value in extra.items():
+            self.global_conf[name] = value
+        
     def get_table(self, table: str)-> Optional[TableConf]:
         return self.tables[table]

@@ -7,8 +7,7 @@ import pandas
 import base64
 from pathlib import Path
 
-from ..common import get_table_name
-from ..db import get_cursor
+from ..db import get_cursor, connection
 from ..config import settings
 from pandas import isna
 from ..db.query import DbBatch, DbFakeBatch, DbFakeQuery, DbQuery
@@ -20,16 +19,6 @@ from ..utils import int_to_base36, read_content, read_yaml
 from .profile import Profile
 from .export import ExportColumn, ExportConstant
 from .types import TYPE_COMPAT, CONVERTS
-
-
-def encode_global_id(v):
-    """
-        global_id is provided as an 48bytes hexadecimal encoded string
-        To keep compat with old (<36 chars) we reencode it ot base64 urlsafe
-
-    """
-    b = base64.b16decode(v, casefold=True)
-    return base64.urlsafe_b64encode(b).decode('utf-8')
 
 class ImportError(Exception):
     pass
@@ -64,33 +53,19 @@ class Importer:
         if not os.path.exists(self.path):
             raise ImportError("Input path doesnt exists '%s'" % (self.path))
         
-        self.migrations = {}
         self.profile = None
-        self.load_migrations()
+        
         self.has_error = False
     
     def error(self, message):
         self.has_error = True
         print("[error] %s" % ( message))
-
-    def load_migrations(self):
-        f = self.path + '/' + 'migration.csv'
-        r = pandas.read_csv(f)
-        for index, row in r.iterrows():
-            new_id = row['global_id']
-            old_id = row['OldID']
-            self.migrations[new_id] = old_id
         
     def load_profile(self, file):
         r = read_yaml(file, must_exist=True)
-        if not 'profile' in r:
-            raise Exception("Unable to find 'profile' entry in %s" % file)
-        self.profile = Profile(r['profile'])
-
-    def import_migrations(self):
-        pass
-
-    def import_table(self, table, csv_file):
+        self.profile = Profile(r, {'path': self.path, 'debug': self.debug})
+    
+    def import_table(self, name, csv_file):
         """
             Import a from a the csv file to the database
             ---
@@ -98,17 +73,31 @@ class Importer:
             dry_run -- if True dont do modification just show what will be done
         
         """
+        connection.connect()
         rows = pandas.read_csv(csv_file)
-        tb_conf = self.profile.get_table(table)
+
+        tb_conf = self.profile.get_table(name)
         if tb_conf is None:
-            raise Exception("Unknow table profile '%s'" % (table))
+            raise Exception("Unknow table profile '%s'" % (name))
+
+        rows.info(verbose=True)
+        if len(tb_conf.preprocess) > 0:
+            for index, processor in enumerate(tb_conf.preprocess):
+                try:
+                    print(processor)
+                    processor.apply(rows)
+                except Exception as e:
+                    raise ImportError("Error running preprocessor %d" % index ) from e
+        if self.debug:
+            rows.info(verbose=True)
         
-        target = get_table_struct(get_table_name(table))
+        table = tb_conf.get_table_name()
+        target = get_table_struct(table)
         
         if str(rows.columns.values[0]) == "Unnamed: 0":
             rows = rows.rename(columns={'Unnamed: 0':"_rowid"})
 
-        auto_ignore = ['version','engineVersion','language', '_rowid']
+        auto_ignore = ['engineVersion','language', '_rowid']
         auto_add = ['global_id','timestamp']
         columns = rows.columns
         
@@ -117,8 +106,6 @@ class Importer:
         # Export schema
         export = [] # Columns to import
         
-        # export.append(ExportConstant('country', get_country_db_code(self.country)))
-
         for column in columns:
             if column in auto_ignore:
                 continue
@@ -261,19 +248,10 @@ class Importer:
         for idx, row in rows.iterrows():
             vv = []
             for column in columns:
-
                 if column.is_constant():
                     vv.append(column.value)
                     continue
-
                 value = row[column.name]
-
-                if column.target == "global_id":
-                    if value in self.migrations:
-                        value = self.migrations[value]
-                    else:
-                        value = str(encode_global_id(value))
-
                 if isna(value):
                     value = None
                 else:
@@ -298,11 +276,10 @@ class Importer:
         batch.run()
         cursor.close()
 
-        if self.dry_run:
-            min_time = rows['timestamp'].min().to_pydatetime()
-        else:
-            min_time = db.fetch("select min(timestamp) from %s" % temp_table, mode="one")
+        min_time = rows['timestamp'].min().to_pydatetime()
+        max_time = rows['timestamp'].max().to_pydatetime()
+
         target_table = target.qualified_table()
-        db.execute("delete from %s where timestamp >= %%s" % target_table, (min_time,))
+        db.execute("delete from %s where timestamp >= %%s and timestamp <= %%s" % target_table, (min_time, max_time))
         db.execute("insert into %s select * from %s" % (target_table, temp_table))
             

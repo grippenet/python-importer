@@ -2,14 +2,27 @@
 import psycopg2
 from ..config import settings
 
-conn = psycopg2.connect(settings['dsn'])
+class Connection:
+
+    def __init__(self) -> None:
+        self.conn = None
+
+    def connect(self):
+        dsn = settings['dsn']
+        self.conn = psycopg2.connect(**dsn)
+
+    def cursor(self):
+        if self.conn is None:
+            raise Exception("Not connected")
+        return self.conn.cursor()
+
+connection = Connection()
 
 class DbError(Exception):
     pass
 
-
 def get_cursor():
-    return conn.cursor()
+    return connection.cursor()
 
 class DbQuery:
 
