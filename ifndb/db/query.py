@@ -16,6 +16,13 @@ class Connection:
             raise Exception("Not connected")
         return self.conn.cursor()
 
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+
 connection = Connection()
 
 class DbError(Exception):
@@ -45,16 +52,16 @@ class DbQuery:
         cursor.execute(query, params)
         count = True
         if do_commit:
-            conn.commit()
+            connection.commit()
             count = cursor.rowcount
         cursor.close()
         return count
 
     def commit(self):
-       return conn.commit()
+       return connection.commit()
 
     def rollback(self):
-       return conn.commit()
+       return connection.rollback()
 
 class DbFakeQuery(DbQuery):
     
@@ -91,7 +98,7 @@ class DbBatch:
             for q in self.chunks:
                 self.index += 1
                 self.cursor.execute(q)
-            conn.commit()
+            connection.commit()
         except psycopg2.Error as e:
             d = {}
             for v in ['column_name', 'constraint_name', 'context', 'internal_query', 'datatype_name', 'internal_position','message_detail','message_hint','statement_position']:
@@ -128,7 +135,7 @@ class DbBatchValues:
                 self.index += 1
                 print(q)
                 self.cursor.execute(q)
-            conn.commit()
+            connection.commit()
         except psycopg2.Error as e:
             raise DbError("Query error for query %d : e" % (self.index, e)) from e
         self.chunks = []

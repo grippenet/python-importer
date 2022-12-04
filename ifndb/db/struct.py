@@ -3,7 +3,7 @@
 Table structure utilities
 
 """
-from .query import get_cursor
+from .query import get_cursor, DbQuery
 from typing import List, Optional, Dict
 
 class UnknownTableException(Exception):
