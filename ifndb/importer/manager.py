@@ -19,6 +19,7 @@ from ..utils import int_to_base36, read_content, read_yaml
 from .profile import Profile
 from .export import ExportColumn, ExportConstant
 from .types import TYPE_COMPAT, CONVERTS
+from .source import DataSource
 
 class ImportError(Exception):
     pass
@@ -65,17 +66,17 @@ class Importer:
         r = read_yaml(file, must_exist=True)
         self.profile = Profile(r, {'path': self.path, 'debug': self.debug})
     
-    def import_table(self, name, csv_file):
+    def import_table(self, name, source:DataSource):
         """
             Import a from a the csv file to the database
             ---
-            params:
-            dry_run -- if True dont do modification just show what will be done
-        
+            name: name of the profile to use for import
+            csv_file: 
         """
         connection.connect()
-        rows = pandas.read_csv(csv_file)
-
+        
+        rows = source.load()
+        
         tb_conf = self.profile.get_table(name)
         if tb_conf is None:
             raise Exception("Unknow table profile '%s'" % (name))
@@ -143,7 +144,7 @@ class Importer:
         if self.has_error:
             print("Some errors occured. Unable to make import")
             return
-        self.import_data(target, rows, export)
+        self.import_data(target, rows, export, source)
 
     def convert_series(self, data: pandas.Series, to:str):
         if to == 'int':
@@ -155,7 +156,7 @@ class Importer:
         if to == 'bool':
             return data.astype(bool)
         if to == 'str':
-            return data.astype(str)
+            return data.map( lambda x: str(x) if not isna(x) else None)
         if to == 'month-year':
             d = pandas.to_datetime(data, unit='s')
             return d.dt.strftime('%Y-%m')
@@ -203,7 +204,7 @@ class Importer:
             return 'str'
         return None
     
-    def import_data(self, target:TableStruct, rows: pandas.DataFrame, columns: List[ExportColumn]):
+    def import_data(self, target:TableStruct, rows: pandas.DataFrame, columns: List[ExportColumn], source: DataSource):
         plan = 'import_' + int_to_base36(int(time.time()))
 
         if self.dry_run:
@@ -218,7 +219,7 @@ class Importer:
 
         db.execute("DROP TABLE IF EXISTS %s" % temp_table)
         db.execute("CREATE TABLE %s (like %s)" % (temp_table, target.qualified_table()))
-        
+        db.execute("ALTER TABLE %s DROP COLUMN id" % (temp_table)) # Remove id columns so it uses sequence when imported
         vars = []
         cols = []
         params = [] # List of parameters to add
@@ -267,19 +268,24 @@ class Importer:
                 if self.show_batch_count > 0 and shown < self.show_batch_count:
                     to_show = True
                     shown += 1
-                if self.show_batch_row > 0 and row['_rowid'] == self.show_batch_row:
+                if self.show_batch_row > 0 and idx == self.show_batch_row:
                     to_show = True
                 if to_show:
+                    print("------")
+                    print(row.dtypes)
                     print(row.to_dict())
                     print(qq)
             
         batch.run()
         cursor.close()
 
-        min_time = rows['timestamp'].min().to_pydatetime()
-        max_time = rows['timestamp'].max().to_pydatetime()
-
+        if source.has_time_range():
+            min_time, max_time = source.get_time_range()
+        else:
+            min_time = rows['timestamp'].min().to_pydatetime()
+            max_time = rows['timestamp'].max().to_pydatetime()
+        
         target_table = target.qualified_table()
         db.execute("delete from %s where timestamp >= %%s and timestamp <= %%s" % target_table, (min_time, max_time))
-        db.execute("insert into %s select * from %s" % (target_table, temp_table))
+        db.execute("insert into %s select nextval(pg_get_serial_sequence('%s', 'id')), * from %s" % (target_table, target.table_name, temp_table))
             

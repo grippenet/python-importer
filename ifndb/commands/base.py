@@ -2,7 +2,7 @@ import os
 from cliff.command import Command
 from . import register
 
-from ..importer import Importer
+from ..importer import Importer, CSVDataSource
 class ImportCommand(Command):
     """
     import data
@@ -25,8 +25,17 @@ class ImportCommand(Command):
 
         file = args.file
         path = os.path.dirname(file)
-        importer = Importer(path, {'dry_run': True})
+
+        opts = {
+            'dry_run': args.dry_run,
+            'show_batch': args.show_batch,
+            'show_batch_row': args.show_batch_row,
+        }
+
+        source = CSVDataSource(file, 'submitted')
+
+        importer = Importer(path, opts)
         importer.load_profile(args.profile)
-        importer.import_table(args.table, file)
+        importer.import_table(args.table, source)
 
 register(ImportCommand)
