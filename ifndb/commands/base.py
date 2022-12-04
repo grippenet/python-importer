@@ -26,7 +26,10 @@ class ImportCommand(Command):
         file = args.file
         path = os.path.dirname(file)
 
+        debug = self.app.options.debug
+
         opts = {
+            'debug': debug,
             'dry_run': args.dry_run,
             'show_batch': args.show_batch,
             'show_batch_row': args.show_batch_row,
