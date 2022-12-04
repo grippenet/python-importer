@@ -117,7 +117,7 @@ class TimeElapsedProcessor(BasePreprocessor):
         pass
 
     def apply(self, rows: pandas.DataFrame):
-        rows['timeelapsed'] = rows['opened'] - rows['submitted']
+        rows['timeelapsed'] = rows['submitted'] - rows['opened']
 
     def __str__(self):
         return "<timeelapsed>"
