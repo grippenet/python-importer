@@ -82,6 +82,9 @@ class Importer:
             raise Exception("Unknow table profile '%s'" % (name))
 
         rows.info(verbose=True)
+
+        if self.show_batch_row > 0:
+            print(rows.loc[self.show_batch_row].to_dict())
         if len(tb_conf.preprocess) > 0:
             for index, processor in enumerate(tb_conf.preprocess):
                 try:
@@ -91,7 +94,9 @@ class Importer:
                     raise ImportError("Error running preprocessor %d" % index ) from e
         if self.debug:
             rows.info(verbose=True)
-        
+        if self.show_batch_row > 0:
+                print(rows.loc[self.show_batch_row].to_dict())
+
         table = tb_conf.get_table_name()
         target = get_table_struct(table)
         
@@ -133,7 +138,8 @@ class Importer:
 
             if not convert_to is None:
                 if self.debug:
-                    print("Convert %s to %s" % (column, convert_to))
+                    pass
+                    # print("Convert %s to %s" % (column, convert_to))
                 rows[column] = self.convert_series(rows[column], convert_to)
             export.append(ExportColumn(name, target_name, convert_to))
         
@@ -154,7 +160,8 @@ class Importer:
         if to == 'date':
             return pandas.to_datetime(data, unit="s")
         if to == 'bool':
-            return data.astype(bool)
+            #return data.map(lambda x: bool(x) if not isna(x) else None).astype(bool)
+            return data.astype('boolean')
         if to == 'str':
             return data.map( lambda x: str(x) if not isna(x) else None)
         if to == 'month-year':
@@ -258,6 +265,8 @@ class Importer:
                 else:
                     if(column.type == "int"):
                         value = int(value)
+                    if(column.type == "bool"):
+                        value = bool(value)
                 vv.append(value)
             qq = cursor.mogrify(execute_query, vv)
             batch.append(qq)
