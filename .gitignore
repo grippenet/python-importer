@@ -1,4 +1,5 @@
 venv/
-data/
-epidbcmd/local_config.py
+data
+profiles
+settings.json
 **/__pycache__
