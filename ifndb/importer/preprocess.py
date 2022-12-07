@@ -122,6 +122,59 @@ class TimeElapsedProcessor(BasePreprocessor):
     def __str__(self):
         return "<timeelapsed>"
 
+class ToBooleanProcessor(BasePreprocessor):
+    """
+        Transform colum to boolean
+    """
+    def __init__(self, conf, global_conf):
+        if not 'columns' in conf:
+            raise Exception("expected 'columns' entry")
+        self.columns_selector = ColumnSelector(conf['columns'])
+        self.na_false = False
+        if 'na_false' in conf:
+            self.na_false = bool(conf['na_false'])
+       
+   
+    def apply(self, rows: pandas.DataFrame):
+        data_columns = list(rows.columns)
+        columns = self.columns_selector.select(data_columns)
+        booleans = {'0': False, '1':True, 'true': True, 'false': False}
+        if self.na_false:
+            to_bool = lambda x:str(x).lower() if not pandas.isna(x) else '0'
+        else:
+            to_bool = lambda x:str(x).lower() if not pandas.isna(x) else None
+        for column in columns:
+            rows[column] = rows[column].map(to_bool).replace(booleans)
+
+    def __str__(self):
+        return "<boolean:%s>" % (self.columns_selector)
+
+class IndicatorProcessor(BasePreprocessor):
+    """
+       Create a boolean variable (indicator) if another has non empty data
+       
+       parameters : dictionary with a set of rules (like rename) key = column where data are, value = pattern to create indicator columns
+
+    """
+    def __init__(self, conf, global_conf):
+        if not isinstance(conf, dict):
+            raise Exception("parameters must be a dictionary")
+        self.rules = conf
+
+    def apply(self, rows: pandas.DataFrame):
+       data_columns = list(rows.columns)
+
+       for source_pattern, target_pattern in self.rules.items():
+            for column in data_columns:
+                if re.match(source_pattern, column) is not None:
+                    target_column = re.sub(source_pattern, target_pattern, column)
+                    if target_column in data_columns:
+                        raise Exception("Column '%s' already in the data, cannot use it for indicator (from %s)" % (target_column, column))
+                    rows[target_column] = rows[column].map(lambda x: True if not isna(x) else False)
+
+    def __str__(self):
+        return "<indicator:%s>" % (str(self.rules))
+
 class MigrationProcessor(BasePreprocessor):
     """
         Replace
@@ -131,7 +184,6 @@ class MigrationProcessor(BasePreprocessor):
         self.encode = 'encode' in conf and conf['encode']
     
     def load(self, global_conf):
-        print(global_conf)
         if not 'migrations' in global_conf:
             raise Exception("migrations is not available in global config")
         conf = global_conf['migrations']
@@ -163,4 +215,6 @@ PREPROCESSORS = {
     'mcg': McgPreprocessor,
     'timeelapsed': TimeElapsedProcessor,
     'migration': MigrationProcessor,
+    'boolean': ToBooleanProcessor,
+    'indicator':IndicatorProcessor
 }

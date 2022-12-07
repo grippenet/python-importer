@@ -2,7 +2,8 @@
 import yaml
 import os
 import sys
-
+from datetime import datetime
+import json
 class Output:
     """
         Simple output class
@@ -40,6 +41,13 @@ def write_content(path, content):
         f.write(content)
         f.close()
 
+def read_json(path, must_exist=False):
+    with open(path, 'r') as f:
+        data = json.load(fp=f)
+        f.close()
+    return data
+
+
 def read_yaml(path, must_exist=False):
     data = read_content(path, must_exist=must_exist)
     obj = yaml.load(data, yaml.FullLoader)
@@ -68,3 +76,11 @@ def int_to_base36(i):
         i, n = divmod(i, 36)
         b36 = chars[n] + b36
     return b36
+
+ISO_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
+def from_iso_time(time:str):
+    return datetime.strptime(time, ISO_TIME_FORMAT)
+
+def to_iso_time(d):
+    return d.strftime(ISO_TIME_FORMAT)

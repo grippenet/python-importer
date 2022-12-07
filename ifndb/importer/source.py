@@ -34,6 +34,5 @@ class CSVDataSource(DataSource):
     def load(self)->pandas.DataFrame:
         rows = pandas.read_csv(self.csv_file)
         return rows
-        
 
 
