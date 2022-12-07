@@ -2,7 +2,7 @@ import fnmatch
 from typing import Dict, Optional, List
 from collections import OrderedDict
 from ..common import get_table_name
-
+from ..utils import read_yaml
 from .types import CONVERTS
 
 from . preprocess import PREPROCESSORS
@@ -89,9 +89,15 @@ class Profile:
         else:
             self.create_globals({}, extra_globals)
         
-        self.tables = {}
+        self.tables: Dict[str, TableConf] = {}
         for name, tb in data.items():
             self.tables[name] = TableConf(tb, self.global_conf)
+
+    @staticmethod
+    def from_yaml(file: str, extra_globals: Dict):
+        r = read_yaml(file, must_exist=True)
+        return Profile(r, extra_globals)
+    
 
     def create_globals(self, conf, extra:Dict):
         if 'key_separator' in conf:

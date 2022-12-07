@@ -3,8 +3,8 @@ import json
 from cliff.command import Command
 from . import register
 from ..utils import from_iso_time,write_content,read_json
-
-from ..importer import Importer, CSVDataSource
+from ..db import DbQuery
+from ..importer import Importer, CSVDataSource, Profile
 class ImportCommand(Command):
     """
     import data from a csv file, using a transformation profile (describing transformation)
@@ -91,5 +91,37 @@ class ImportCatalogCommand(Command):
             importer.import_table(args.table, source)
             write_content(mark_file, '') # Mark file as done
 
+class UpdateParticipantsCommand(Command):
+    """
+    Update participant table 
+    """
+
+    name = 'update-participants'
+
+    def get_parser(self, prog_name):
+        parser = super(UpdateParticipantsCommand, self).get_parser(prog_name)
+        parser.add_argument("--profile", help="profile yaml file describing the import process", required=True)
+        parser.add_argument("--dry-run", action="store_true") 
+        return parser
+    
+    def take_action(self, args):
+        
+        profile = Profile.from_yaml(args.profile, {})
+
+        tables = []
+
+        for name, table_conf in profile.tables.items():
+            table = table_conf.get_table_name()
+            tables.append(table)
+
+        qq = map(lambda t: "select global_id from %s " % (t), tables )
+
+        qq = " union ".join(qq)
+        query = "INSERT INTO survey_surveyuser (global_id) SELECT DISTINCT global_id FROM(%s) t ON CONFLICT DO NOTHING;" % (qq)
+
+        db = DbQuery()
+        db.execute(query)
+
 register(ImportCommand)
 register(ImportCatalogCommand)
+register(UpdateParticipantsCommand)

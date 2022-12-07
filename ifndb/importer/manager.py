@@ -4,21 +4,19 @@ from typing import Dict, Optional, List
 import os
 import time
 import pandas
-import base64
 from pathlib import Path
 
 from ..db import get_cursor, connection
-from ..config import settings
 from pandas import isna
 from ..db.query import DbBatch, DbFakeBatch, DbFakeQuery, DbQuery
 from ..db.struct import ColumnDef, TableStruct, get_table_struct
 from ..db.types import normalize_db_type
 from ..db.utils import quote_id
-from ..utils import int_to_base36, read_content, read_yaml
+from ..utils import int_to_base36, read_yaml
 
 from .profile import Profile
 from .export import ExportColumn, ExportConstant
-from .types import TYPE_COMPAT, CONVERTS
+from .types import TYPE_COMPAT
 from .source import DataSource
 
 class ImportError(Exception):
@@ -63,9 +61,8 @@ class Importer:
         print("[error] %s" % ( message))
         
     def load_profile(self, file):
-        r = read_yaml(file, must_exist=True)
-        self.profile = Profile(r, {'path': self.path, 'debug': self.debug})
-    
+        self.profile = Profile.from_yaml(file,  {'path': self.path, 'debug': self.debug})
+        
     def import_table(self, name, source:DataSource):
         """
             Import a from a the csv file to the database
@@ -94,8 +91,11 @@ class Importer:
                     raise ImportError("Error running preprocessor %d" % index ) from e
         if self.debug:
             rows.info(verbose=True)
+
+        #rows.to_csv('debug.csv')
+        
         if self.show_batch_row > 0:
-                print(rows.loc[self.show_batch_row].to_dict())
+            print(rows.loc[self.show_batch_row].to_dict())
 
         table = tb_conf.get_table_name()
         target = get_table_struct(table)
@@ -136,11 +136,14 @@ class Importer:
                 if name in target:
                     convert_to = self.auto_convert_type(target[name])
 
-            if not convert_to is None:
-                if self.debug:
-                    pass
-                    # print("Convert %s to %s" % (column, convert_to))
-                rows[column] = self.convert_series(rows[column], convert_to)
+            if convert_to is not None:
+                try:
+                    rows[column] = self.convert_series(rows[column], convert_to)
+                except Exception as e:
+                    print(rows[column])
+                    print(rows[column].dtypes)
+                    print(rows[column].unique())
+                    raise Exception("Error converting %s" % column) from e
             export.append(ExportColumn(name, target_name, convert_to))
         
         if self.dry_run or self.debug:
