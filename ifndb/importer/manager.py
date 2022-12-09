@@ -85,7 +85,8 @@ class Importer:
         if len(tb_conf.preprocess) > 0:
             for index, processor in enumerate(tb_conf.preprocess):
                 try:
-                    print(processor)
+                    if self.debug:
+                        print(processor)
                     processor.apply(rows)
                 except Exception as e:
                     raise ImportError("Error running preprocessor %d" % index ) from e
