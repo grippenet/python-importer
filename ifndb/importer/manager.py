@@ -78,7 +78,8 @@ class Importer:
         if tb_conf is None:
             raise Exception("Unknow table profile '%s'" % (name))
 
-        rows.info(verbose=True)
+        if self.debug:
+            rows.info(verbose=True)
 
         if self.show_batch_row > 0:
             print(rows.loc[self.show_batch_row].to_dict())
