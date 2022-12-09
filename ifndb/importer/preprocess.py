@@ -32,8 +32,6 @@ class RenamePreprocessor(BasePreprocessor):
             renamer = lambda n: re.sub(pattern, target, n)
             rows.rename(columns=renamer, inplace=True)
 
-        print(rows.columns)
-
     def __str__(self) -> str:
         return '<rename>'
 
