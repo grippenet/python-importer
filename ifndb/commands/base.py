@@ -3,7 +3,7 @@ import json
 from cliff.command import Command
 from . import register
 from ..utils import from_iso_time,write_content,read_json
-from ..db import DbQuery
+from ..db import DbQuery, connection
 from ..importer import Importer, CSVDataSource, Profile
 from collections import Counter
 class ImportCommand(Command):
@@ -124,6 +124,8 @@ class UpdateParticipantsCommand(Command):
         for name, table_conf in profile.tables.items():
             table = table_conf.get_table_name()
             tables.append(table)
+
+        connection.connect()
 
         qq = map(lambda t: "select global_id from %s " % (t), tables )
 
