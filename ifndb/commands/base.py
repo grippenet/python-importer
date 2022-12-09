@@ -76,7 +76,7 @@ class ImportCatalogCommand(Command):
 
         catalog = read_json(catalog_file)
 
-        for catalog_entry in catalog:
+        for catalog_entry in catalog['files']:
             file = data_path + '/' + catalog_entry['file']
             mark_file = file + mark_ext
             if os.path.exists(mark_file):
