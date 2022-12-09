@@ -31,6 +31,8 @@ class ColumnSelector:
         self.selectors = list(self.config(conf))
          
     def config(self, conf):
+        if not isinstance(conf, list):
+            raise Exception("Column selector entry must be a list (each entry could be str or dict['glob' or 're'])")
         for selector_conf in conf:
             if isinstance(selector_conf, str) or isinstance(selector_conf, list):
                 yield FixedColumnSelector(selector_conf)
