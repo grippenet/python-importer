@@ -46,12 +46,16 @@ class TableConf:
         self.mapping = OrderedDict()
         self.table = conf['table']
         self.preprocess = []
+
         
         for name, colDef in conf['mapping'].items():
             self.mapping[name] = ColumnConf(name, colDef)
             if '*' in name:
                 self.patterns.append(name)
-        if 'prepare' in conf:
+        
+        skip_prepare = 'skip_prepare' in global_conf and global_conf['skip_prepare']
+        
+        if 'prepare' in conf and not skip_prepare:
             for index, p in enumerate(conf['prepare']):
                 try:
                     pc = self.create_preprocessor(p, global_conf)

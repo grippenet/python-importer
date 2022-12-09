@@ -117,7 +117,7 @@ class UpdateParticipantsCommand(Command):
     
     def take_action(self, args):
         
-        profile = Profile.from_yaml(args.profile, {})
+        profile = Profile.from_yaml(args.profile, {'skip_prepare': True})
 
         tables = []
 
