@@ -5,6 +5,7 @@ from . import register
 from ..utils import from_iso_time,write_content,read_json
 from ..db import DbQuery
 from ..importer import Importer, CSVDataSource, Profile
+from collections import Counter
 class ImportCommand(Command):
     """
     import data from a csv file, using a transformation profile (describing transformation)
@@ -76,11 +77,19 @@ class ImportCatalogCommand(Command):
 
         catalog = read_json(catalog_file)
 
+        counter = Counter()
+        
         for catalog_entry in catalog['files']:
             file = data_path + '/' + catalog_entry['file']
             mark_file = file + mark_ext
             if os.path.exists(mark_file):
-                continue
+                skip = True
+                if os.path.getmtime(mark_file) < os.path.getmtime(file):
+                    print("File %s to be updated" % file)
+                    skip = False
+                if skip:
+                    counter['skipped'] += 1
+                    continue
             min_time = from_iso_time(catalog_entry['start'])
             max_time = from_iso_time(catalog_entry['end'])
             print("Processing %s [%s, %s]" % (file, min_time, max_time))
@@ -90,6 +99,8 @@ class ImportCatalogCommand(Command):
             importer.load_profile(args.profile)
             importer.import_table(args.table, source)
             write_content(mark_file, '') # Mark file as done
+            counter['processed'] += 1
+        print("%d processed, %d skipped (already done)" % (counter['processed'], counter['skipped']))
 
 class UpdateParticipantsCommand(Command):
     """
