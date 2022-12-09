@@ -73,7 +73,7 @@ class Importer:
         connection.connect()
         
         rows = source.load()
-        
+
         tb_conf = self.profile.get_table(name)
         if tb_conf is None:
             raise Exception("Unknow table profile '%s'" % (name))
@@ -88,7 +88,10 @@ class Importer:
                 try:
                     if self.debug:
                         print(processor)
-                    processor.apply(rows)
+                    rr = processor.apply(rows)
+                    if not isinstance(rr, pandas.DataFrame):
+                        raise Exception("Processor must return the dataframe")
+                    rows = rr
                 except Exception as e:
                     raise ImportError("Error running preprocessor %d" % index ) from e
         if self.debug:

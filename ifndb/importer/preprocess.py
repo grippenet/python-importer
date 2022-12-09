@@ -3,6 +3,7 @@ import re
 import json
 from pandas import isna
 import base64
+import sys
 from .columns import ColumnSelector
 
 def encode_global_id(v):
@@ -31,6 +32,7 @@ class RenamePreprocessor(BasePreprocessor):
         for pattern, target in self.rules.items():
             renamer = lambda n: re.sub(pattern, target, n)
             rows.rename(columns=renamer, inplace=True)
+        return rows
 
     def __str__(self) -> str:
         return '<rename>'
@@ -60,6 +62,7 @@ class McgPreprocessor(BasePreprocessor):
                     return column.replace(self.separator, '_')
                 return column
             rows.rename(columns=renamer, inplace=True)
+        return rows
 
     def __str__(self):
         return "<mcg(%s):%s>" % (self.separator, ','.join(self.keys))
@@ -103,6 +106,7 @@ class UnJsonPreprocessor(BasePreprocessor):
             if not column in rows.columns:
                 continue
             rows[column] = rows[column].apply(update_row)
+        return rows
 
     def __str__(self):
         return "<unjson(%s):%s>" % (self.parser_name, self.columns_selector)
@@ -116,6 +120,7 @@ class TimeElapsedProcessor(BasePreprocessor):
 
     def apply(self, rows: pandas.DataFrame):
         rows['timeelapsed'] = rows['submitted'] - rows['opened']
+        return rows
 
     def __str__(self):
         return "<timeelapsed>"
@@ -130,8 +135,7 @@ class ToBooleanProcessor(BasePreprocessor):
         self.columns_selector = ColumnSelector(conf['columns'])
         self.na_false = False
         if 'na_false' in conf:
-            self.na_false = bool(conf['na_false'])
-       
+            self.na_false = bool(conf['na_false']) 
    
     def apply(self, rows: pandas.DataFrame):
         data_columns = list(rows.columns)
@@ -143,6 +147,7 @@ class ToBooleanProcessor(BasePreprocessor):
             to_bool = lambda x:str(x).lower() if not pandas.isna(x) else None
         for column in columns:
             rows[column] = rows[column].map(to_bool).replace(booleans)
+        return rows
 
     def __str__(self):
         return "<boolean:%s>" % (self.columns_selector)
@@ -160,15 +165,16 @@ class IndicatorProcessor(BasePreprocessor):
         self.rules = conf
 
     def apply(self, rows: pandas.DataFrame):
-       data_columns = list(rows.columns)
+        data_columns = list(rows.columns)
 
-       for source_pattern, target_pattern in self.rules.items():
+        for source_pattern, target_pattern in self.rules.items():
             for column in data_columns:
                 if re.match(source_pattern, column) is not None:
                     target_column = re.sub(source_pattern, target_pattern, column)
                     if target_column in data_columns:
                         raise Exception("Column '%s' already in the data, cannot use it for indicator (from %s)" % (target_column, column))
                     rows[target_column] = rows[column].map(lambda x: True if not isna(x) else False)
+        return rows
 
     def __str__(self):
         return "<indicator:%s>" % (str(self.rules))
@@ -203,9 +209,33 @@ class MigrationProcessor(BasePreprocessor):
             return value
                 
         rows['global_id'] = rows['global_id'].apply(migrate_id)
+        return rows
 
     def __str__(self):
         return "<migrations>"
+
+class SkipIfNullProcessor(BasePreprocessor):
+    """
+       Create a boolean variable (indicator) if another has non empty data
+       
+       parameters : dictionary with a set of rules (like rename) key = column where data are, value = pattern to create indicator columns
+
+    """
+    def __init__(self, conf, global_conf):
+        self.columns_selector = ColumnSelector(conf['columns'])
+        
+    def apply(self, rows: pandas.DataFrame):
+       data_columns = list(rows.columns)
+       columns = self.columns_selector.select(data_columns)
+       to_skip = pandas.isnull(rows[columns]).any(axis='columns') 
+       if to_skip.any():
+            df_null = rows[to_skip]
+            print(df_null[['ID','global_id']])
+            rows = rows[ ~ to_skip ]
+       return rows
+       
+    def __str__(self):
+        return "<skip_if_null:%s>" % (str(self.columns_selector))
 
 PREPROCESSORS = {
     'rename': RenamePreprocessor,
@@ -214,5 +244,6 @@ PREPROCESSORS = {
     'timeelapsed': TimeElapsedProcessor,
     'migration': MigrationProcessor,
     'boolean': ToBooleanProcessor,
-    'indicator':IndicatorProcessor
+    'indicator':IndicatorProcessor,
+    'skip_if_null': SkipIfNullProcessor,
 }
