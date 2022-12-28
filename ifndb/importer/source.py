@@ -22,7 +22,7 @@ class DataSource:
     def is_csv(self):
         return self.source_type == DATASOURCE_CSV
 
-    def load(self)->pandas.DataFrame:
+    def load(self, dtype=None)->pandas.DataFrame:
         pass
 
 class CSVDataSource(DataSource):
@@ -31,8 +31,8 @@ class CSVDataSource(DataSource):
         super().__init__(DATASOURCE_CSV)
         self.csv_file = csv_file
 
-    def load(self)->pandas.DataFrame:
-        rows = pandas.read_csv(self.csv_file)
+    def load(self, dtype=None)->pandas.DataFrame:
+        rows = pandas.read_csv(self.csv_file, dtype=dtype)
         return rows
 
 

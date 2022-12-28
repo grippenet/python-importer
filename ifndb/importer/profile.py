@@ -4,6 +4,7 @@ from collections import OrderedDict
 from ..common import get_table_name
 from ..utils import read_yaml
 from .types import CONVERTS
+import numpy
 
 from . preprocess import PREPROCESSORS
 
@@ -44,10 +45,14 @@ class TableConf:
     def __init__(self, conf, global_conf):
         self.patterns = []
         self.mapping = OrderedDict()
+        self.csv_types = None
         self.table = conf['table']
         self.preprocess = []
-
         
+        if 'csv_types' in conf:
+            # dtypes can be used to force type during csv loading
+            self.csv_types = self.create_dtypes(conf['csv_types'])
+
         for name, colDef in conf['mapping'].items():
             self.mapping[name] = ColumnConf(name, colDef)
             if '*' in name:
@@ -71,6 +76,29 @@ class TableConf:
                 if fnmatch.fnmatch(name, pattern):
                     return self.mapping[pattern]
         return None
+
+    def create_dtypes(self, conf:Dict):
+        o = {}
+
+        def dtype_from_name(name):
+            if value == 'int':
+                return numpy.int32
+            if value == 'int8':
+                return numpy.int8
+            if value == "int64":
+                return numpy.int64
+            if value == "str":
+                return str
+            if value == "bool":
+                return numpy.bool8
+            return value
+
+        for name, value in conf.items():
+            v = dtype_from_name(value)
+            o[name] = v
+        return o
+
+
 
     def create_preprocessor(self, conf, global_conf):
         if not isinstance(conf, dict):
