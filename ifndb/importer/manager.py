@@ -72,12 +72,12 @@ class Importer:
         """
         connection.connect()
         
-        rows = source.load()
-
         tb_conf = self.profile.get_table(name)
         if tb_conf is None:
             raise Exception("Unknow table profile '%s'" % (name))
 
+        rows = source.load(dtype=tb_conf.csv_types)
+        
         if self.debug:
             rows.info(verbose=True)
 
