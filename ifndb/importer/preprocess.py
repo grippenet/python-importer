@@ -25,7 +25,7 @@ class RenamePreprocessor(BasePreprocessor):
 
     def __init__(self, conf, global_conf) -> None:
         if not isinstance(conf, dict):
-            raise Exception("expected dict of rules 'pattern': 'replacemenet'")
+            raise Exception("expected dict of rules 'pattern': 'replacement'")
         self.rules = conf
         
     def apply(self, rows: pandas.DataFrame):
