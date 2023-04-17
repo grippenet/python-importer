@@ -6,6 +6,14 @@ from ..utils import from_iso_time,write_content,read_json
 from ..db import DbQuery, connection
 from ..importer import Importer, CSVDataSource, Profile
 from collections import Counter
+import random
+import string
+
+def get_random_string(length):
+    letters = string.ascii_letters + string.digits
+    return ''.join(random.choice(letters) for i in range(length))
+
+
 class ImportCommand(Command):
     """
     import data from a csv file, using a transformation profile (describing transformation)
@@ -102,6 +110,27 @@ class ImportCatalogCommand(Command):
             counter['processed'] += 1
         print("%d processed, %d skipped (already done)" % (counter['processed'], counter['skipped']))
 
+
+class QuerySet:
+
+    def __init__(self):
+        self.querys = []
+
+    def add(self, label, query):
+        self.querys.append( (label, query))
+    
+    def run(self, db: DbQuery):
+        for q in self.querys:
+            label, query = q
+            n = db.execute(query)
+            print("%s : %d" % (label, n))
+    
+    def show(self):
+        for q in self.querys:
+            label, query = q
+            print("-- %s" % (label))
+            print("%s;" % (query) )
+    
 class UpdateParticipantsCommand(Command):
     """
     Update participant table 
@@ -119,6 +148,8 @@ class UpdateParticipantsCommand(Command):
         
         profile = Profile.from_yaml(args.profile, {'skip_prepare': True})
 
+        dry_run = args.dry_run
+
         tables = []
 
         for name, table_conf in profile.tables.items():
@@ -127,13 +158,29 @@ class UpdateParticipantsCommand(Command):
 
         connection.connect()
 
+        part_table = "participant_ids_" + get_random_string(5)
+
         qq = map(lambda t: "select global_id from %s " % (t), tables )
 
         qq = " union ".join(qq)
-        query = "INSERT INTO survey_surveyuser (global_id) SELECT DISTINCT global_id FROM(%s) t ON CONFLICT DO NOTHING;" % (qq)
 
-        db = DbQuery()
-        db.execute(query)
+        querys = QuerySet()
+
+        querys.add("create_table", "CREATE TEMPORARY TABLE %s (id VARCHAR(45) NOT NULL)" % (part_table))
+
+        query = "INSERT INTO %s (id) SELECT DISTINCT global_id FROM(%s) t" % (part_table, qq)
+
+        querys.add("insert ids", query)
+
+        querys.add("remove existing", "DELETE FROM %s WHERE id IN(select global_id from survey_surveyuser)" % (part_table))
+
+        querys.add("insert remains", "INSERT INTO survey_surveyuser (global_id, participant_id) SELECT id, id from %s" % (part_table))
+
+        if dry_run:
+            querys.show()
+        else:
+            db = DbQuery()
+            querys.run(db)
 
 register(ImportCommand)
 register(ImportCatalogCommand)
