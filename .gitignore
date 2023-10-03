@@ -3,3 +3,4 @@ data
 profiles
 settings.json
 **/__pycache__
+.envrc
