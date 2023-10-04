@@ -5,7 +5,7 @@ def register(klass):
     COMMANDS.append(klass)
 
 # Load module to be able to register (autoloader)
-from . import loader, launch
+from . import loader, launch, export
 
 def get_commands():
     return COMMANDS
