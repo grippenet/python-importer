@@ -1,5 +1,6 @@
 import json
 import os
+
 settings = {}
 
 def load_config():
@@ -7,7 +8,12 @@ def load_config():
     env = os.getenv('IFNDB_SETTINGS', '')
     if env != '':
         file = env
-    data = json.load(open(file, 'r'))
+    try:
+        data = json.load(open(file, 'r'))
+    except Exception as e:
+        print("Error loading settings in %s" % file)
+        print(e)
+        
     for name, param in data.items():
         settings[name] = param
     
