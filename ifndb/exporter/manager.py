@@ -1,32 +1,7 @@
-from .profile import ExportProfile, TableConf
+from .profile import ExportProfile, TableConf, TableRef
 from typing import Dict, Optional, List
-from ..db import get_table_struct
-
-class OutputColumn:
-    """
-        Describe a target column populated by an expression
-    """
-    def __init__(self, target:str, expr:str):
-        self.target = target # Target column name
-        self.expr = expr # Expression used to populate the column
-
-class UpdateQuery:
-    """
-        All info to build the update query
-    """
-    def __init__(self, target_table, source_table, columns: List[OutputColumn]):
-        self.target_table = target_table # INSERT
-        self.source_table = source_table
-        self.columns = columns # Target_colum and expression to populate it from the source column
-
-    def select(self):
-        exprs = [o.expr for o in self.columns]
-        return "select %s from %s" % (",".join(exprs), self.source_table)
-
-    def query(self):
-        cols = [o.target for o in self.columns]
-        return "insert into %s (%s) %s" % (self.target_table, ",".join(cols),  self.select())        
-
+from ..db import get_table_struct, connection, DbQuery,quote_id
+from .update import UpdateQuery, OutputColumn
 class ExportResult:
     """
         Build result
@@ -44,20 +19,24 @@ class ExporterManager:
     def build_table(self, conf: TableConf)-> ExportResult:
         src_table = conf.get_source_table()
         target_table = conf.get_target_table()
-        #src_struct = get_table_struct(src_table.name, src_table.schema)
+        src_struct = get_table_struct(src_table.name, src_table.schema)
         target_struct = get_table_struct(target_table.name, target_table.schema)
 
         exports = []
         errors = []
         for mapping in conf.get_mapping():
-            target_column = mapping
+            target_column = mapping.target
             if target_column not  in target_struct:
-                errors.append("Column '%d' doenst exists in target %s" % (target_column, str(target_table)))
+                errors.append("Column '%s' doenst exists in target %s (%s)" % (target_column, str(target_table), conf.name))
                 continue
-            exports.append(OutputColumn(mapping.target, mapping.source))
+            expr = mapping.source
+            if expr is None or expr == '':
+                errors.append("Source expression for '%s' cannot be null for %s (%s)" % (target_column, str(target_table), conf.name))
+            
+            exports.append(OutputColumn(mapping.target, expr))
         
         exported = [o.target for o in exports]
-        for column, column_def in target_struct.column_definitions.items():
+        for column, column_def in target_struct.column_definitions().items():
             if column in exported:
                 continue
             if not column_def.is_nullable():
@@ -69,9 +48,12 @@ class ExporterManager:
             query = UpdateQuery(target_table, src_table, exports)
         return ExportResult(query, errors)
 
-    def build(self)->Dict[str, ExportResult]:
+    def build(self, survey_name=None)->Dict[str, ExportResult]:
+        connection.connect()
         rr = {}
         for name, conf in self.profile.tables.items():
+            if survey_name is not None and name != survey_name:
+                continue
             rr[name] = self.build_table(conf)
         return rr
 
