@@ -126,17 +126,45 @@ Type of preparation steps:
 - mcg
 - skip_if_null
 
+### Columns selector
+
+A column selector is an expression describing a way to select a list of columns (in the list of columns of the source data).
+
+A selector can be:
+  - a string (column name), used as a fixed
+  - a list of string (list of column names)
+  - a dictionary with either:
+      'glob' key with pattern(s) (single string or list of pattern)
+      're' key with pattern(s) (single string or list of pattern)
+
 ### timeelapsed
 
 Create the timeelapsed column, and compute the time between the opening and submission of the survey
 
 ### rename
 
-Rename column using regex pattern
+Rename column using regex pattern.
+Config is a dictionary, each entry is a a rule to rename columns. 
+To be read key => target
+Where key is the column pattern to rename, value the target column name (possibily with replace pattern variable, e.g. \\1, \\2...)
+
+```yaml
+- rename: 
+    "Q6\\|mcg": "Q6_5"
+    "Q4h\\|5": "Q4h_5_open"
+    "Q6\\|mat\\.row(\\d+)\\.col1": "Q6_\\1_open"
+    "Q4b_0": Q4b_0_open
+
+```
+
 
 ### unjson
 Transform json provided columns into a flat structure (add new column)
-Expected config
+Expected config:
+
+- config: a list of column selectors to look for JSON value
+- parser: the name of the parser for the JSON
+
 
 ```yaml
 columns: 
@@ -161,6 +189,18 @@ Map new participant id to old participant Id. This step MUST appear once.
 ### skip_if_null
 
 ### indicator
+Create a boolean variable (indicator) if another has non empty data
+Config is a dictionary with a set of rules (like rename) with 
+key is column selector where data are and the value the pattern to create indicator columns
+
+Example:
+```yaml
+    - indicator:
+        "Q6_(\\d+)_open": "Q6_\\1"
+```
+Crete a indicator named Q6_[x] where x is the value of the number in the middle of Q6_[x]_open (eg. Q6_5_open => Q6_5), this new column
+takes value True if the source column has a value, False if not
+
 
 ## Mapping
 
