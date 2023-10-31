@@ -4,7 +4,7 @@ from collections import OrderedDict
 from ..common import get_table_name
 from ..utils import read_yaml
 from .types import CONVERTS
-
+import numpy
 
 from . preprocess import PREPROCESSORS
 
