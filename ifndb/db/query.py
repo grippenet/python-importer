@@ -10,16 +10,21 @@ class Connection:
     def connect(self):
         dsn = settings['dsn']
         self.conn = psycopg2.connect(**dsn)
+        print(get_connexion_name())
 
     def cursor(self):
         if self.conn is None:
-            raise Exception("Not connected")
+            self.connect()
         return self.conn.cursor()
 
     def commit(self):
+        if self.conn is None:
+            raise Exception("Not connected")
         self.conn.commit()
 
     def rollback(self):
+        if self.conn is None:
+            raise Exception("Not connected")
         self.conn.rollback()
 
 
@@ -31,6 +36,9 @@ class DbError(Exception):
 def get_cursor():
     return connection.cursor()
 
+def get_connexion_name():
+    info = connection.conn.info
+    return "%s@%s/%s" % (info.user, info.host,  info.dbname)
 class DbQuery:
 
     def fetch(self,query, mode='all'):

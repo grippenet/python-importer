@@ -27,7 +27,7 @@ class ExporterManager:
         for mapping in conf.get_mapping():
             target_column = mapping.target
             if target_column not  in target_struct:
-                errors.append("Column '%s' doenst exists in target %s (%s)" % (target_column, str(target_table), conf.name))
+                errors.append("Column '%s' doesnt exists in target %s (%s)" % (target_column, str(target_table), conf.name))
                 continue
             expr = mapping.source
             if expr is None or expr == '':

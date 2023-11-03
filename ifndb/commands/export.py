@@ -1,10 +1,12 @@
 from . import register
 from cliff.command import Command
 from ..config import settings
-from ..exporter import ExportProfile, ExporterManager
+from ..exporter import ExportProfile, ExporterManager, get_export_table
 from ..db import DbQuery
+from ..common import TABLES
 from pathlib import Path
-
+from rich.console import Console
+from rich.table import Table
 class ExportCommand(Command):
     """
     Create table and view for new season
@@ -16,7 +18,6 @@ class ExportCommand(Command):
         parser = super(ExportCommand, self).get_parser(prog_name)
         parser.add_argument("profile", help="Profile name (name of the yaml file in export_profile_path)")
         parser.add_argument("survey", help="Profile survey name, all if None", default=None, nargs="?")
-        parser.add_argument("--dry-run", help="Only print queries", action="store_true", default=False)
         g = parser.add_mutually_exclusive_group()
         g.add_argument("--config", help="Show Config and exit", action="store_true", default=False)
         g.add_argument("--select", help="Test select query", action="store_true", default=False)
@@ -35,7 +36,6 @@ class ExportCommand(Command):
         if args.config:
             print(repr(profile))
             return
-
         exporter = ExporterManager(profile)
         results = exporter.build(survey_name)
         has_error = False
@@ -49,8 +49,11 @@ class ExportCommand(Command):
             print("Export profile has errors, cannot continue")
             return
         
-        dry_run = args.dry_run
-
+        if args.show:
+            dry_run = True
+        else:
+            dry_run = False
+        
         for name, res in results.items():
             print("Export profile ", name)
             update = res.update
@@ -65,10 +68,10 @@ class ExportCommand(Command):
                 except Exception as e:
                     print("Error running select query")
                     print(e)
-            if args.apply:
+            if args.apply or args.show:
                 q = DbQuery()
                 try:
-                    cleanup_query = "DELETE FROM %s where timestamp >= %%s and timestamp <= %%s" % (update.source_table)
+                    cleanup_query = "DELETE FROM %s where timestamp >= %%s and timestamp <= %%s" % (update.target_table)
                     if dry_run:
                         print(cleanup_query)
                     else:
@@ -81,8 +84,37 @@ class ExportCommand(Command):
                 except Exception as e:
                     print("Error executing query")
                     print(e)
-        
 
+class ExportShowCommand(Command):
+    """
+    Create table and view for new season
+    """
+
+    name = 'export:show'
+
+    def get_parser(self, prog_name):
+        parser = super(ExportShowCommand, self).get_parser(prog_name)
+        parser.add_argument("survey", help="Profile survey name, all if None", default=None, nargs="?")
+        return parser
+
+    def take_action(self, args):
+        surveys = TABLES
+        tb = Table()
+        tb.add_column("Survey")
+        tb.add_column("Count")
+        tb.add_column("Min")
+        tb.add_column("Max")
         
-            
+        console = Console()
+
+        for survey in surveys:
+            q = DbQuery()
+            query = "select count(*), min(timestamp), max(timestamp) from %s" % get_export_table(survey)
+            rr = q.fetch(query)
+            r = rr[0]
+            tb.add_row(survey, str(r[0]), str(r[1]), str(r[2]))
+        console.print(tb)
+    
+
 register(ExportCommand)
+register(ExportShowCommand)

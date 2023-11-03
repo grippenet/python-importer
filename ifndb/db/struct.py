@@ -3,7 +3,7 @@
 Table structure utilities
 
 """
-from .query import get_cursor, DbQuery
+from .query import get_cursor, DbQuery, get_connexion_name
 from typing import List, Optional, Dict
 
 class UnknownTableException(Exception):
@@ -120,7 +120,7 @@ def get_table_struct(table, schema="public", by_ordinal=True):
     rows = cursor.fetchall()
     cursor.close()
     if len(rows) == 0:
-        raise UnknownTableException("Unable to find table %s.%s" % (schema, table))
+        raise UnknownTableException("Unable to find table %s.%s on " % (schema, table, get_connexion_name() ))
     d = {}
     columns = []
     for row in rows:
