@@ -73,14 +73,14 @@ class ExportCommand(Command):
                 try:
                     cleanup_query = "DELETE FROM %s where timestamp >= %%s and timestamp <= %%s" % (update.target_table)
                     if dry_run:
-                        print(cleanup_query)
+                        print(cleanup_query.replace('%%s','%s') % (src_range[0], src_range[1]))
                     else:
                         q.execute(cleanup_query, (src_range[0], src_range[1]))
                     update_query = update.query()
                     if dry_run:
                         print(update_query)
                     else:
-                        q.execute(cleanup_query, (src_range[0], src_range[1]))
+                        q.execute(update_query)
                 except Exception as e:
                     print("Error executing query")
                     print(e)
@@ -95,24 +95,32 @@ class ExportShowCommand(Command):
     def get_parser(self, prog_name):
         parser = super(ExportShowCommand, self).get_parser(prog_name)
         parser.add_argument("survey", help="Profile survey name, all if None", default=None, nargs="?")
+        parser.add_argument("season", help="Profile survey name, all if None", default=None, nargs="?")
         return parser
 
     def take_action(self, args):
         surveys = TABLES
         tb = Table()
         tb.add_column("Survey")
+        tb.add_column("Season")
         tb.add_column("Count")
         tb.add_column("Min")
         tb.add_column("Max")
         
         console = Console()
-
+        season = True
         for survey in surveys:
+            tb.add_section()
             q = DbQuery()
-            query = "select count(*), min(timestamp), max(timestamp) from %s" % get_export_table(survey)
+
+            if season:
+                season_col = "date_part('year', \"timestamp\")::int - case when date_part('month', \"timestamp\") < 9 then 1 else 0 end";
+            else:
+                season_col = "'all'"    
+            query = "select %s \"season\", count(*), min(timestamp), max(timestamp) from %s group by \"season\" order by \"season\" " % (season_col, get_export_table(survey))
             rr = q.fetch(query)
-            r = rr[0]
-            tb.add_row(survey, str(r[0]), str(r[1]), str(r[2]))
+            for r in rr:
+                tb.add_row(survey, str(r[0]), str(r[1]), str(r[2]), str(r[3]))
         console.print(tb)
     
 
